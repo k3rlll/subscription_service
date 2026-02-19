@@ -1,0 +1,17 @@
+env: "development"
+
+
+server:
+  timeout: 15s
+  idle_timeout: 60s
+  host: "0.0.0.0"
+  port: 8082
+  server_mode: "development"
+
+
+database:
+  host: "postgres"
+  port: 5432
+  username: "postgres"
+  password: "postgres"
+  name: "subscriptiondb"
