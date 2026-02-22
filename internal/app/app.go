@@ -34,10 +34,10 @@ func Run(cfg config.Config, logger *slog.Logger, usecase *usecase.Usecase) *echo
 	e.Use(middleware.RequestLoggerWithConfig(middleware.RequestLoggerConfig{
 		LogURI:      true,
 		LogStatus:   true,
-		LogLatency:  true,
+		LogLatency:  true, // log the time taken to process the request
 		LogMethod:   true,
 		LogError:    true,
-		LogRemoteIP: true,
+		LogRemoteIP: true, // log the client's IP address for better traceability in future, jusst in case
 		HandleError: true,
 		LogValuesFunc: func(c echo.Context, v middleware.RequestLoggerValues) error {
 			attrs := []any{
