@@ -3,15 +3,25 @@ package usecase
 import (
 	"context"
 	"fmt"
-	"main/internal/domain/customerrors"
+	domain "main/internal/domain/entity"
+	"time"
 
 	"github.com/google/uuid"
 )
 
 type Repository interface {
-	CreateSubscription(ctx context.Context, input CreateRequestOutput) error
-	GetSubscriptionByID(ctx context.Context, subscriptionID uuid.UUID) (SubscriptionResponse, error)
-	GetListSubs(ctx context.Context, userID uuid.UUID) ([]SubscriptionResponse, error)
+	//
+	CreateSubscription(ctx context.Context, input domain.Subscription) error
+	//
+	GetSubscriptionByID(ctx context.Context, subscriptionID uuid.UUID) (domain.Subscription, error)
+	//
+	GetListSubs(ctx context.Context, userID uuid.UUID) ([]domain.Subscription, error)
+	//
+	UpdateSubscription(ctx context.Context, input domain.Subscription) error
+	//
+	DeleteSubscription(ctx context.Context, subscriptionID uuid.UUID) error
+	//
+	GetOverlappingSubscriptions(ctx context.Context, userID uuid.UUID, serviceName string, start, end time.Time) ([]domain.Subscription, error)
 }
 
 type Usecase struct {
@@ -24,59 +34,12 @@ func NewUsecase(repo Repository) *Usecase {
 	}
 }
 
-type CreateRequestInput struct {
-	ServiceName string
-	Price       int
-	UserID      string
-	StartDate   string
-	EndDate     string
-}
-
-type CreateRequestOutput struct {
-	ID          uuid.UUID `json:"id"`
-	ServiceName string    `json:"service_name"`
-	Price       int       `json:"price"`
-	UserID      uuid.UUID `json:"user_id"`
-	StartDate   string    `json:"start_date"`
-	EndDate     string    `json:"end_date"`
-}
-
-type SubscriptionResponse struct {
-	ID          uuid.UUID `json:"id"`
-	ServiceName string    `json:"service_name"`
-	Price       int       `json:"price"`
-	UserID      uuid.UUID `json:"user_id"`
-	StartDate   string    `json:"start_date"`
-	EndDate     string    `json:"end_date"`
-}
-
-type ListSubscriptionsRequest struct {
-	UserID string `json:"user_id"`
-	Limit  string `json:"limit"`
-	Offset string `json:"offset"`
-}
-
-type ListSubscriptionsResponse struct {
-	Subscriptions []SubscriptionResponse `json:"subscriptions"`
-}
-
-func (u *Usecase) CreateSubscription(ctx context.Context, input CreateRequestInput) error {
-	var req CreateRequestOutput
+func (u *Usecase) CreateSubscription(ctx context.Context, req domain.Subscription) error {
 	subID, err := uuid.NewRandom()
 	if err != nil {
 		return fmt.Errorf("failed to generate subscription ID: %w", err)
 	}
-
-	parsedUserID, err := uuid.Parse(input.UserID)
-	if err != nil {
-		return fmt.Errorf("failed to parse UUID: %w", customerrors.ErrInvalidRequest)
-	}
 	req.ID = subID
-	req.ServiceName = input.ServiceName
-	req.Price = input.Price
-	req.UserID = parsedUserID
-	req.StartDate = input.StartDate
-	req.EndDate = input.EndDate
 	err = u.repo.CreateSubscription(ctx, req)
 	if err != nil {
 		return fmt.Errorf("failed to create subscription: %w", err)
@@ -84,27 +47,94 @@ func (u *Usecase) CreateSubscription(ctx context.Context, input CreateRequestInp
 	return nil
 }
 
-func (u *Usecase) GetSubscriptionByID(ctx context.Context, subscriptionID string) (SubscriptionResponse, error) {
-	subsUUID, err := uuid.Parse(subscriptionID)
+func (u *Usecase) GetSubscriptionByID(ctx context.Context, subscriptionID uuid.UUID) (domain.Subscription, error) {
+	response, err := u.repo.GetSubscriptionByID(ctx, subscriptionID)
 	if err != nil {
-		return SubscriptionResponse{}, fmt.Errorf("failed to parse subscription ID: %w", customerrors.ErrInvalidRequest)
-	}
-	response, err := u.repo.GetSubscriptionByID(ctx, subsUUID)
-	if err != nil {
-		return SubscriptionResponse{}, fmt.Errorf("failed to get subscription: %w", err)
+		return domain.Subscription{}, fmt.Errorf("failed to get subscription: %w", err)
 	}
 	return response, nil
 }
 
-func (u *Usecase) GetListSubs(ctx context.Context, req ListSubscriptionsRequest) ([]SubscriptionResponse, error) {
-	userUUID, err := uuid.Parse(req.UserID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse user ID: %w", customerrors.ErrInvalidRequest)
-	}
-
-	response, err := u.repo.GetListSubs(ctx, userUUID)
+func (u *Usecase) GetListSubs(ctx context.Context, req domain.Subscription) ([]domain.Subscription, error) {
+	response, err := u.repo.GetListSubs(ctx, req.UserID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get list of subscriptions: %w", err)
 	}
 	return response, nil
+}
+
+func (u *Usecase) UpdateSubscription(ctx context.Context, req domain.Subscription) error {
+	err := u.repo.UpdateSubscription(ctx, req)
+	if err != nil {
+		return fmt.Errorf("failed to update subscription: %w", err)
+	}
+	return nil
+
+}
+
+func (u *Usecase) DeleteSubscription(ctx context.Context, subscriptionID uuid.UUID) error {
+	err := u.repo.DeleteSubscription(ctx, subscriptionID)
+	if err != nil {
+		return fmt.Errorf("failed to delete subscription: %w", err)
+	}
+
+	return nil
+}
+
+// TODO: разберись с подсчетом стоимости
+func (u *Usecase) CalculateTotalCost(
+	ctx context.Context,
+	userID uuid.UUID,
+	serviceName string,
+	reqStart time.Time,
+	reqEnd time.Time,
+) (int64, error) {
+
+	// prevent calculating cost for the too far future
+	// if a request will contain range from 01-2026 to 12-2099,
+	// the cost will be too huge
+	now := time.Now()
+	currentMonth := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
+
+	if reqEnd.After(currentMonth) {
+		reqEnd = currentMonth
+	}
+
+	subs, err := u.repo.GetOverlappingSubscriptions(ctx, userID, serviceName, reqStart, reqEnd)
+	if err != nil {
+		return 0, err
+	}
+
+	var totalCost int64 = 0
+
+	for _, sub := range subs {
+		calcStart := sub.StartDate
+		if reqStart.After(calcStart) {
+			calcStart = reqStart
+		}
+
+		calcEnd := reqEnd
+
+		if sub.EndDate != nil && sub.EndDate.Before(reqEnd) {
+			calcEnd = *sub.EndDate
+		}
+
+		// protect against invalid date ranges, where the calculated start is after the calculated end
+		// but actually it is not possible, because handler already checks the validity of the date range,
+		// however, it will not be overkill to add this check, just in case
+		if calcStart.After(calcEnd) {
+			continue
+		}
+
+		// calculate the number of months between calcStart and calcEnd
+		// formula:
+		// (year2 - year1)*12
+		// + (month2 - month1)
+		// + 1 (including the month of start date)
+		months := int(calcEnd.Year()-calcStart.Year())*12 + int(calcEnd.Month()-calcStart.Month()) + 1
+
+		totalCost += int64(months) * sub.Price
+	}
+
+	return totalCost, nil
 }
