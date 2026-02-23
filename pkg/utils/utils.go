@@ -5,6 +5,10 @@ import (
 	"time"
 )
 
+// ParseDate takes startDate and endDate as strings in the format "MM-YYYY" and parses them into time.Time objects.
+// It returns the parsed start time, a pointer to the parsed end time (which can be nil if endDate is not provided),
+//
+//	and an error if any parsing fails or if the end date is before the start date.
 func ParseDate(startDate, endDate string) (time.Time, *time.Time, error) {
 	startTime, err := time.Parse("01-2006", startDate)
 	if err != nil {

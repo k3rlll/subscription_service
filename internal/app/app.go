@@ -7,9 +7,12 @@ import (
 	handler "main/internal/handler"
 	usecase "main/internal/usecase"
 
+	_ "main/docs"
+
 	"github.com/go-playground/validator/v10"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
+	
 )
 
 type CustomValidator struct {
@@ -24,6 +27,7 @@ func Run(cfg config.Config, logger *slog.Logger, usecase *usecase.Usecase) *echo
 	e := echo.New()
 	e.HideBanner = true
 	e.Validator = &CustomValidator{validator: validator.New()}
+	
 
 	// custom error handler
 	e.HTTPErrorHandler = CustomHTTPErrorHandler

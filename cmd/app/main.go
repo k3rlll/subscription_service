@@ -16,6 +16,11 @@ import (
 	"time"
 )
 
+// @title           Subscription API
+// @version         1.0
+// @description     This is a sample server for managing subscriptions.
+// @host            localhost:8080
+// @BasePath        /api/v1
 func main() {
 	cfg := config.LoadConfig()
 	logger := logger.SetupLogger(cfg.Env)

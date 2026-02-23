@@ -50,17 +50,21 @@ type AuthUsecase interface {
 	GetSubscriptionByID(ctx context.Context, subscriptionID uuid.UUID) (domain.Subscription, error)
 
 	// GetListSubs handles the retrieval of a list of subscriptions for a specific user based on the provided user ID
-	GetListSubs(ctx context.Context, req domain.Subscription) ([]domain.Subscription, error)
+	GetListSubs(ctx context.Context, req domain.Subscription, limit, offset int) ([]domain.Subscription, error)
 
 	// UpdateSubscription handles the update of an existing subscription
-	// based on the provided subscription ID and request payload
+	// based on the provided subscription ID and request payload(service name, price, start date, end date)
 	UpdateSubscription(ctx context.Context, req domain.Subscription) error
 
 	// DeleteSubscription handles the deletion of a subscription based on the provided subscription ID
 	DeleteSubscription(ctx context.Context, subscriptionID uuid.UUID) error
 }
 
-// Data transfer object for creating a subscription (DTO)
+//
+//
+//
+
+// CreateRequest defines the expected payload for creating a subscription
 type CreateRequest struct {
 	ServiceName string `json:"service_name" validate:"required"`
 	Price       int64  `json:"price" validate:"required,gte=0"`
@@ -69,69 +73,20 @@ type CreateRequest struct {
 	EndDate     string `json:"end_date" validate:"omitempty,datetime=01-2006"`
 }
 
-type CreateInput struct {
-	ServiceName string     `json:"service_name"`
-	Price       int64      `json:"price"`
-	UserID      uuid.UUID  `json:"user_id"`
-	StartDate   time.Time  `json:"start_date"`
-	EndDate     *time.Time `json:"end_date"`
-}
-
-type SubscriptionResponse struct {
-	ID          string     `json:"id"`
-	ServiceName string     `json:"service_name"`
-	Price       int64      `json:"price"`
-	UserID      string     `json:"user_id"`
-	StartDate   time.Time  `json:"start_date"`
-	EndDate     *time.Time `json:"end_date"`
-}
-
-type UpdateRequest struct {
-	ID          string `json:"id" validate:"required,uuid4"`
-	ServiceName string `json:"service_name" validate:"required"`
-	Price       int64  `json:"price" validate:"required,gte=0"`
-	StartDate   string `json:"start_date" validate:"required,datetime=01-2006"`
-	EndDate     string `json:"end_date" validate:"omitempty,datetime=01-2006"`
-}
-
-type UpdateInput struct {
-	ID          string     `json:"id"`
-	ServiceName string     `json:"service_name"`
-	Price       int64      `json:"price"`
-	StartDate   time.Time  `json:"start_date"`
-	EndDate     *time.Time `json:"end_date"`
-}
-
-type ListSubscriptionsRequest struct {
-	UserID string `query:"user_id" validate:"required,uuid4"`
-	Limit  int    `query:"limit" validate:"required,min=1,max=100"`
-	Offset int    `query:"offset" validate:"min=0"`
-}
-
-type GetCalculationsRequest struct {
-	UserID      string `query:"user_id" validate:"required,uuid4"`
-	ServiceName string `query:"service_name" validate:"omitempty"`
-	StartDate   string `query:"start_date" validate:"required,datetime=01-2006"`
-	EndDate     string `query:"end_date" validate:"omitempty,datetime=01-2006"`
-}
-
-type GetCalculationsInput struct {
-	UserID      uuid.UUID
-	ServiceName string
-	StartDate   time.Time
-	EndDate     *time.Time
-}
-
-type GetCalculationsResponse struct {
-	TotalCost int `json:"total_cost"`
-}
-
-type DeleteSubscriptionRequest struct {
-	ID string `json:"id" validate:"required,uuid4"`
-}
-
-// POST
-// CreateSubscription handles the creation of a new subscription based on the incoming request
+// CreateSubscription godoc
+// @Summary      Create a new subscription
+// @Description  Creates a new subscription for a user based on the provided data.
+// @Tags         subscriptions
+// @Accept       json
+// @Produce      json
+// @Param        request body CreateRequest true "Subscription creation data"
+// @Success      201 {object} map[string]string "message: Subscription created"
+// @Failure      400 {object} map[string]interface{} "Bad request (invalid JSON, UUID, or dates)"
+// @Failure      404 {object} map[string]string "User or dependent resource not found"
+// @Failure      409 {object} map[string]string "Subscription already exists (Conflict)"
+// @Failure      422 {object} map[string]interface{} "Validation error"
+// @Failure      500 {object} map[string]string "Internal server error"
+// @Router       /subscriptions [post]
 func (h *Handler) CreateSubscription(c echo.Context) error {
 	var req CreateRequest
 
@@ -147,13 +102,11 @@ func (h *Handler) CreateSubscription(c echo.Context) error {
 
 	// validation via github.com/go-playground/validator
 	if err := c.Validate(&req); err != nil {
-		// check wether the error is a validation error
 		var validationErrs validator.ValidationErrors
 		if errors.As(err, &validationErrs) {
-			return echo.NewHTTPError(http.StatusBadRequest, formatValidationError(err))
+			return echo.NewHTTPError(http.StatusUnprocessableEntity, formatValidationError(err))
 		}
-		// 500 Internal Server Error: mistake of the developer or the validation package
-		return err
+		return fmt.Errorf("validation system error: %w", err)
 	}
 	//
 	//
@@ -208,14 +161,33 @@ func (h *Handler) CreateSubscription(c echo.Context) error {
 	})
 }
 
-// GET
+//
 
-// GetCalculations return total cost of subscriptions for a user
-// based on the provided query parameters
-// (user_id, service_name, start_date, end_date)
-// service_name can be empty,
-// then we will calculate total cost for all services of the user
-// for instance: /calculations?user_id=blabla&service_name==blabla&start_date=blabla&end_date=blabla
+//
+
+// GetCalculationsRequest defines the expected query parameters for calculating total cost of subscriptions
+type GetCalculationsRequest struct {
+	UserID      string `query:"user_id" validate:"required,uuid4"`
+	ServiceName string `query:"service_name" validate:"omitempty"`
+	StartDate   string `query:"start_date" validate:"required,datetime=01-2006"`
+	EndDate     string `query:"end_date" validate:"omitempty,datetime=01-2006"`
+}
+
+// GetCalculations godoc
+// @Summary      Get total cost of subscriptions
+// @Description  Calculates the total cost of a user's subscriptions for a given period. If service_name is empty, calculates for all services. If end_date is omitted, uses the current date.
+// @Tags         calculations
+// @Accept       json
+// @Produce      json
+// @Param        user_id      query string true  "User ID (UUID)" format(uuid)
+// @Param        service_name query string false "Specific service name to calculate cost for"
+// @Param        start_date   query string true  "Start date (e.g., 2023-01-01)" format(date)
+// @Param        end_date     query string false "End date (e.g., 2023-12-31)" format(date)
+// @Success      200 {object} map[string]interface{} "Calculation result"
+// @Failure      400 {object} map[string]interface{} "Bad request (invalid query parameters or dates)"
+// @Failure      422 {object} map[string]interface{} "Validation error"
+// @Failure      500 {object} map[string]string "Internal server error"
+// @Router       /subscriptions/calculations [get]
 func (h *Handler) GetCalculations(c echo.Context) error {
 
 	// there is c.Param in echo framework, but it is used for path parameters, for example: /calculations/:id
@@ -241,7 +213,7 @@ func (h *Handler) GetCalculations(c echo.Context) error {
 	if err := c.Validate(&req); err != nil {
 		var validationErrs validator.ValidationErrors
 		if errors.As(err, &validationErrs) {
-			return echo.NewHTTPError(http.StatusBadRequest, formatValidationError(err))
+			return echo.NewHTTPError(http.StatusUnprocessableEntity, formatValidationError(err))
 		}
 		// 500 Internal Server Error: mistake of the developer or the validation package
 		return fmt.Errorf("validation failed: %w", err)
@@ -280,8 +252,18 @@ func (h *Handler) GetCalculations(c echo.Context) error {
 	return c.JSON(http.StatusOK, fmt.Sprintf("%d рублей", response))
 }
 
-// GetSubscription handles the retrieval of subscription details based on the provided subscription ID
-// for instance: api/v1/subscriptions/93074b79-9c8c-4b60-82df-0bdd0aaa2b04
+// GetSubscriptionByID godoc
+// @Summary      Get subscription by ID
+// @Description  Retrieves detailed information about a specific subscription using its UUID.
+// @Tags         subscriptions
+// @Accept       json
+// @Produce      json
+// @Param        id   path      string true "Subscription ID (UUID)" format(uuid)
+// @Success      200  {object}  domain.Subscription "Subscription details"
+// @Failure      400  {object}  map[string]interface{} "Bad request (invalid ID format or invalid request logic)"
+// @Failure      404  {object}  map[string]string "Subscription not found"
+// @Failure      500  {object}  map[string]string "Internal server error"
+// @Router       /subscriptions/{id} [get]
 func (h *Handler) GetSubscriptionByID(c echo.Context) error {
 	var subscriptionID string
 
@@ -313,9 +295,31 @@ func (h *Handler) GetSubscriptionByID(c echo.Context) error {
 	return c.JSON(http.StatusOK, response)
 }
 
-// GetListSubs handles the retrieval of a list of subscriptions for a specific user
-// using pagination parameters (limit and offset)
-// query example: user_id=123&limit=10&offset=0
+//
+//
+//
+
+// ListSubscriptionsRequest defines the expected query parameters for listing subscriptions
+type ListSubscriptionsRequest struct {
+	UserID string `query:"user_id" validate:"required,uuid4"`
+	Limit  int    `query:"limit" validate:"required,min=1,max=100"`
+	Offset int    `query:"offset" validate:"omitempty,min=0"`
+}
+
+// GetListSubs godoc
+// @Summary      Get list of subscriptions
+// @Description  Retrieves a paginated list of user subscriptions
+// @Tags         subscriptions
+// @Accept       json
+// @Produce      json
+// @Param        user_id query string true  "User UUID"
+// @Param        limit   query int    true  "Limit for pagination" minimum(1) maximum(100)
+// @Param        offset  query int    false "Offset for pagination" minimum(0)
+// @Success      200 {object} []domain.Subscription "List of subscriptions"
+// @Failure      400 {object} map[string]interface{} "Validation error or bad request"
+// @Failure      422 {object} map[string]interface{} "Validation error"
+// @Failure      500 {object} map[string]interface{} "Internal server error"
+// @Router       /subscriptions [get]
 func (h *Handler) GetListSubs(c echo.Context) error {
 	var listReq ListSubscriptionsRequest
 
@@ -333,7 +337,7 @@ func (h *Handler) GetListSubs(c echo.Context) error {
 	if err := c.Validate(&listReq); err != nil {
 		var validationErrs validator.ValidationErrors
 		if errors.As(err, &validationErrs) {
-			return echo.NewHTTPError(http.StatusBadRequest, formatValidationError(err))
+			return echo.NewHTTPError(http.StatusUnprocessableEntity, formatValidationError(err))
 		}
 		// 500 Internal Server Error: mistake of the developer or the validation package
 		return fmt.Errorf("validation failed: %w", err)
@@ -341,10 +345,12 @@ func (h *Handler) GetListSubs(c echo.Context) error {
 	//
 	uuidUserID, err := uuid.Parse(listReq.UserID)
 	if err != nil {
-		return err
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid_user_id: User ID must be a valid UUID")
 	}
 
-	response, err := h.usecase.GetListSubs(c.Request().Context(), domain.Subscription{UserID: uuidUserID})
+	response, err := h.usecase.GetListSubs(c.Request().Context(), domain.Subscription{
+		UserID: uuidUserID,
+	}, listReq.Limit, listReq.Offset)
 	if err != nil {
 		return fmt.Errorf("Failed to get list of subscriptions: %w", err)
 	}
@@ -357,52 +363,70 @@ func (h *Handler) GetListSubs(c echo.Context) error {
 	return c.JSON(http.StatusOK, response)
 }
 
-// PUT
-// UpdateSubscription handles the update of an existing subscription
-// based on the provided subscription ID and request payload
-// for instance: api/v1/subscriptions/93074b79-9c8c-4b60-82df-0bdd0aaa2b04
+//
+//
+//
+
+// UpdateRequest defines the expected payload for updating a subscription
+type UpdateRequest struct {
+	ID          string `json:"-" validate:"required,uuid4"`
+	ServiceName string `json:"service_name" validate:"required"`
+	Price       int64  `json:"price" validate:"required,gte=0"`
+	StartDate   string `json:"start_date" validate:"required,datetime=01-2006"`
+	EndDate     string `json:"end_date" validate:"omitempty,datetime=01-2006"`
+}
+
+// UpdateSubscription godoc
+// @Summary      Update a subscription
+// @Description  Updates an existing subscription by its ID. The ID is taken from the path, the rest of the data from the JSON body.
+// @Tags         subscriptions
+// @Accept       json
+// @Produce      json
+// @Param        id      path     string        true  "Subscription ID" format(uuid)
+// @Param        request body     UpdateRequest true  "Subscription update payload"
+// @Success      200     {object} map[string]interface{} "message: Subscription updated"
+// @Failure      400     {object} map[string]interface{} "Bad request (invalid ID, empty body, or date format)"
+// @Failure      404     {object} map[string]interface{} "Subscription not found"
+// @Failure      422     {object} map[string]interface{} "Validation errors by field"
+// @Failure      500     {object} map[string]interface{} "Internal server error"
+// @Router       /subscriptions/{id} [put]
 func (h *Handler) UpdateSubscription(c echo.Context) error {
 	var req UpdateRequest
-	req.ID = c.Param("id") // get subscription ID from path parameter
-
-	// bind request body to the struct
 	if err := c.Bind(&req); err != nil {
 		if errors.Is(err, io.EOF) {
 			return echo.NewHTTPError(http.StatusBadRequest, "request body is empty")
 		}
 		return err
 	}
-	//
-	//
 
-	//
+	req.ID = c.Param("id")
+
 	if err := c.Validate(&req); err != nil {
 		var validationErrs validator.ValidationErrors
 		if errors.As(err, &validationErrs) {
-			return echo.NewHTTPError(http.StatusBadRequest, formatValidationError(err))
+			return echo.NewHTTPError(http.StatusUnprocessableEntity, formatValidationError(err))
 		}
-		// 500 Internal Server Error: mistake of the developer or the validation package
-		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
-	}
-	//
 
-	// parse start and end dates to time.Time
+		return fmt.Errorf("validation system error: %w", err)
+	}
+
 	startTime, endTimePtr, err := utils.ParseDate(req.StartDate, req.EndDate)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, "invalid_date: ", err)
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("invalid_date: %v", err))
 	}
 
 	uuidSubID, err := uuid.Parse(req.ID)
 	if err != nil {
-		return err
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid_id: subscription ID must be a valid UUID")
 	}
 
-	var input domain.Subscription
-	input.ID = uuidSubID
-	input.ServiceName = req.ServiceName
-	input.Price = req.Price
-	input.StartDate = startTime
-	input.EndDate = endTimePtr
+	input := domain.Subscription{
+		ID:          uuidSubID,
+		ServiceName: req.ServiceName,
+		Price:       req.Price,
+		StartDate:   startTime,
+		EndDate:     endTimePtr,
+	}
 
 	err = h.usecase.UpdateSubscription(c.Request().Context(), input)
 	if err != nil {
@@ -412,14 +436,30 @@ func (h *Handler) UpdateSubscription(c echo.Context) error {
 		return fmt.Errorf("failed to update subscription: %w", err)
 	}
 
-	return c.JSON(http.StatusOK, map[string]interface{}{
+	return c.JSON(http.StatusOK, echo.Map{
 		"message": "Subscription updated",
 	})
 }
 
-// DELETE
-// DeleteSubscription handles the deletion of a subscription based on the provided subscription ID
-// for instance: api/v1/subscriptions/93074b79-9c8c-4b60-82df-0bdd0aaa2b04
+// DeleteSubscriptionRequest defines the expected payload for deleting a subscription
+type DeleteSubscriptionRequest struct {
+	// ID is the UUID of the subscription to be deleted
+	ID string `json:"-" validate:"required,uuid4"`
+}
+
+// DeleteSubscription godoc
+// @Summary      Delete a subscription
+// @Description  Deletes an existing subscription by its ID.
+// @Tags         subscriptions
+// @Accept       json
+// @Produce      json
+// @Param        id   path      string true "Subscription ID (UUID)" format(uuid)
+// @Success      200  {object}  map[string]interface{} "message: Subscription deleted"
+// @Failure      400  {object}  map[string]interface{} "Bad request (invalid ID format)"
+// @Failure      404  {object}  map[string]interface{} "Subscription not found"
+// @Failure      422  {object}  map[string]interface{} "Validation error"
+// @Failure      500  {object}  map[string]interface{} "Internal server error"
+// @Router       /subscriptions/{id} [delete]
 func (h *Handler) DeleteSubscription(c echo.Context) error {
 	var req DeleteSubscriptionRequest
 	req.ID = c.Param("id")
@@ -430,15 +470,15 @@ func (h *Handler) DeleteSubscription(c echo.Context) error {
 	if err := c.Validate(&req); err != nil {
 		var validationErrs validator.ValidationErrors
 		if errors.As(err, &validationErrs) {
-			return echo.NewHTTPError(http.StatusBadRequest, formatValidationError(err))
+			return echo.NewHTTPError(http.StatusUnprocessableEntity, formatValidationError(err))
 		}
 		// 500 Internal Server Error: mistake of the developer or the validation package
-		return fmt.Errorf("validation failed: %w", err)
+		return fmt.Errorf("validation system error: %w", err)
 	}
 
 	uuidSubID, err := uuid.Parse(req.ID)
 	if err != nil {
-		return err
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid_id: subscription ID must be a valid UUID")
 	}
 
 	//

@@ -13,5 +13,7 @@ type Subscription struct {
 	//write price as int64 for the future scalability of the project
 	Price     int64
 	StartDate time.Time
-	EndDate   *time.Time
+	// EndDate is a pointer to time.Time to allow null values in the database,
+	// indicating an active subscription without a defined end date.
+	EndDate *time.Time
 }

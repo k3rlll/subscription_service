@@ -5,6 +5,7 @@ import (
 	"os"
 )
 
+// SetupLogger initializes and returns a structured logger based on the provided environment.
 func SetupLogger(env string) *slog.Logger {
 	var log *slog.Logger
 	switch env {

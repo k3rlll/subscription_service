@@ -10,12 +10,12 @@ import (
 )
 
 type Repository interface {
-	//
+	//CreateSubscription handles the creation of a new subscription based on the provided request payload (user ID, service name, price, start date, end date)
 	CreateSubscription(ctx context.Context, input domain.Subscription) error
 	//
 	GetSubscriptionByID(ctx context.Context, subscriptionID uuid.UUID) (domain.Subscription, error)
 	//
-	GetListSubs(ctx context.Context, userID uuid.UUID) ([]domain.Subscription, error)
+	GetListSubs(ctx context.Context, userID uuid.UUID, limit, offset int) ([]domain.Subscription, error)
 	//
 	UpdateSubscription(ctx context.Context, input domain.Subscription) error
 	//
@@ -55,8 +55,14 @@ func (u *Usecase) GetSubscriptionByID(ctx context.Context, subscriptionID uuid.U
 	return response, nil
 }
 
-func (u *Usecase) GetListSubs(ctx context.Context, req domain.Subscription) ([]domain.Subscription, error) {
-	response, err := u.repo.GetListSubs(ctx, req.UserID)
+func (u *Usecase) GetListSubs(ctx context.Context, req domain.Subscription, limit, offset int) ([]domain.Subscription, error) {
+	if limit <= 0 {
+		limit = 10
+	}
+	if offset < 0 {
+		offset = 0
+	}
+	response, err := u.repo.GetListSubs(ctx, req.UserID, limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get list of subscriptions: %w", err)
 	}

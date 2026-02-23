@@ -8,6 +8,11 @@ import (
 )
 
 func CustomHTTPErrorHandler(err error, c echo.Context) {
+
+	if c.Response().Committed {
+		return
+	}
+
 	code := http.StatusInternalServerError
 	var msg any
 	msg = "Internal Server Error"
