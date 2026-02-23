@@ -90,13 +90,14 @@ func (r *Repository) GetSubscriptionByID(ctx context.Context, subscriptionID uui
 	return response, nil
 }
 
-func (r *Repository) GetListSubs(ctx context.Context, userID uuid.UUID) ([]domain.Subscription, error) {
+func (r *Repository) GetListSubs(ctx context.Context, userID uuid.UUID, limit, offset int) ([]domain.Subscription, error) {
 
 	query := `select id, service_name, price, user_id, start_date, end_date 
         from subscriptions 
-        where user_id = $1`
-
-	rows, err := r.pool.Query(ctx, query, userID)
+        where user_id = $1
+        order by start_date desc
+        limit $2 offset $3`
+	rows, err := r.pool.Query(ctx, query, userID, limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query subscriptions: %w", err)
 	}
