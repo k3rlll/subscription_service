@@ -1,0 +1,353 @@
+basePath: /api/v1
+definitions:
+  domain.Subscription:
+    properties:
+      endDate:
+        description: |-
+          EndDate is a pointer to time.Time to allow null values in the database,
+          indicating an active subscription without a defined end date.
+        type: string
+      id:
+        type: string
+      price:
+        description: write price as int64 for the future scalability of the project
+        format: int64
+        type: integer
+      serviceName:
+        type: string
+      startDate:
+        type: string
+      userID:
+        type: string
+    type: object
+  handlers.CreateRequest:
+    properties:
+      end_date:
+        type: string
+      price:
+        minimum: 0
+        type: integer
+      service_name:
+        type: string
+      start_date:
+        type: string
+      user_id:
+        type: string
+    required:
+    - price
+    - service_name
+    - start_date
+    - user_id
+    type: object
+  handlers.UpdateRequest:
+    properties:
+      end_date:
+        type: string
+      price:
+        minimum: 0
+        type: integer
+      service_name:
+        type: string
+      start_date:
+        type: string
+    required:
+    - price
+    - service_name
+    - start_date
+    type: object
+host: localhost:8080
+info:
+  contact: {}
+  description: This is a sample server for managing subscriptions.
+  title: Subscription API
+  version: "1.0"
+paths:
+  /subscriptions:
+    get:
+      consumes:
+      - application/json
+      description: Retrieves a paginated list of user subscriptions
+      parameters:
+      - description: User UUID
+        in: query
+        name: user_id
+        required: true
+        type: string
+      - description: Limit for pagination
+        in: query
+        maximum: 100
+        minimum: 1
+        name: limit
+        required: true
+        type: integer
+      - description: Offset for pagination
+        in: query
+        minimum: 0
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: List of subscriptions
+          schema:
+            items:
+              $ref: '#/definitions/domain.Subscription'
+            type: array
+        "400":
+          description: Validation error or bad request
+          schema:
+            additionalProperties: true
+            type: object
+        "422":
+          description: Validation error
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Get list of subscriptions
+      tags:
+      - subscriptions
+    post:
+      consumes:
+      - application/json
+      description: Creates a new subscription for a user based on the provided data.
+      parameters:
+      - description: Subscription creation data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.CreateRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: 'message: Subscription created'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad request (invalid JSON, UUID, or dates)
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: User or dependent resource not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "409":
+          description: Subscription already exists (Conflict)
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "422":
+          description: Validation error
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Create a new subscription
+      tags:
+      - subscriptions
+  /subscriptions/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: Deletes an existing subscription by its ID.
+      parameters:
+      - description: Subscription ID (UUID)
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 'message: Subscription deleted'
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad request (invalid ID format)
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Subscription not found
+          schema:
+            additionalProperties: true
+            type: object
+        "422":
+          description: Validation error
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Delete a subscription
+      tags:
+      - subscriptions
+    get:
+      consumes:
+      - application/json
+      description: Retrieves detailed information about a specific subscription using
+        its UUID.
+      parameters:
+      - description: Subscription ID (UUID)
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Subscription details
+          schema:
+            $ref: '#/definitions/domain.Subscription'
+        "400":
+          description: Bad request (invalid ID format or invalid request logic)
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Subscription not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get subscription by ID
+      tags:
+      - subscriptions
+    put:
+      consumes:
+      - application/json
+      description: Updates an existing subscription by its ID. The ID is taken from
+        the path, the rest of the data from the JSON body.
+      parameters:
+      - description: Subscription ID
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Subscription update payload
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.UpdateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 'message: Subscription updated'
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad request (invalid ID, empty body, or date format)
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Subscription not found
+          schema:
+            additionalProperties: true
+            type: object
+        "422":
+          description: Validation errors by field
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Update a subscription
+      tags:
+      - subscriptions
+  /subscriptions/calculations:
+    get:
+      consumes:
+      - application/json
+      description: Calculates the total cost of a user's subscriptions for a given
+        period. If service_name is empty, calculates for all services. If end_date
+        is omitted, uses the current date.
+      parameters:
+      - description: User ID (UUID)
+        format: uuid
+        in: query
+        name: user_id
+        required: true
+        type: string
+      - description: Specific service name to calculate cost for
+        in: query
+        name: service_name
+        type: string
+      - description: Start date (e.g., 2023-01-01)
+        format: date
+        in: query
+        name: start_date
+        required: true
+        type: string
+      - description: End date (e.g., 2023-12-31)
+        format: date
+        in: query
+        name: end_date
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Calculation result
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad request (invalid query parameters or dates)
+          schema:
+            additionalProperties: true
+            type: object
+        "422":
+          description: Validation error
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get total cost of subscriptions
+      tags:
+      - calculations
+swagger: "2.0"
