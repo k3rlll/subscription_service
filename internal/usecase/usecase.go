@@ -13,14 +13,23 @@ type Repository interface {
 	//CreateSubscription handles the creation of a new subscription based on the provided request payload (user ID, service name, price, start date, end date)
 	CreateSubscription(ctx context.Context, input domain.Subscription) error
 	//
+	//GetSubscriptionByID retrieves a subscription by its unique identifier (UUID) and returns the subscription details or an error if not found
 	GetSubscriptionByID(ctx context.Context, subscriptionID uuid.UUID) (domain.Subscription, error)
 	//
+	//GetListSubs retrieves a list of subscriptions for a specific user, with support for pagination through limit and offset parameters.
+	// It returns a slice of subscriptions or an error if the retrieval fails
 	GetListSubs(ctx context.Context, userID uuid.UUID, limit, offset int) ([]domain.Subscription, error)
 	//
+	//UpdateSubscription updates an existing subscription's details based on the provided subscription object,
+	// which includes the subscription ID and the new values for the fields to be updated.
+	// It returns an error if the update operation fails
 	UpdateSubscription(ctx context.Context, input domain.Subscription) error
 	//
+	//DeleteSubscription deletes a subscription identified by its unique identifier (UUID) and returns an error if the deletion fails
 	DeleteSubscription(ctx context.Context, subscriptionID uuid.UUID) error
 	//
+	//GetOverlappingSubscriptions retrieves a list of subscriptions for a specific user and service that overlap with a given date range (start and end).
+	// It returns a slice of overlapping subscriptions or an error if the retrieval fails
 	GetOverlappingSubscriptions(ctx context.Context, userID uuid.UUID, serviceName string, start, end time.Time) ([]domain.Subscription, error)
 }
 
