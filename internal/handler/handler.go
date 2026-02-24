@@ -221,7 +221,7 @@ func (h *Handler) GetCalculations(c echo.Context) error {
 
 	startTime, endTimePtr, err := utils.ParseDate(req.StartDate, req.EndDate)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err)
+		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
 	}
 
 	//
@@ -308,7 +308,7 @@ type ListSubscriptionsRequest struct {
 
 // GetListSubs godoc
 // @Summary      Get list of subscriptions
-// @Description  Retrieves a paginated list of user subscriptions
+// @Description  Retrieves a paginated list of user subscriptions by user ID.
 // @Tags         subscriptions
 // @Accept       json
 // @Produce      json
@@ -412,7 +412,7 @@ func (h *Handler) UpdateSubscription(c echo.Context) error {
 
 	startTime, endTimePtr, err := utils.ParseDate(req.StartDate, req.EndDate)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("invalid_date: %v", err))
+		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
 	}
 
 	uuidSubID, err := uuid.Parse(req.ID)

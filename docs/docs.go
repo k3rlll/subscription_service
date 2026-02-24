@@ -17,7 +17,7 @@ const docTemplate = `{
     "paths": {
         "/subscriptions": {
             "get": {
-                "description": "Retrieves a paginated list of user subscriptions",
+                "description": "Retrieves a paginated list of user subscriptions by user ID.",
                 "consumes": [
                     "application/json"
                 ],
@@ -438,6 +438,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "id": {
+                    "description": "ID is the unique identifier for the subscription, generated as a UUID.",
                     "type": "string"
                 },
                 "price": {
@@ -449,9 +450,11 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "startDate": {
+                    "description": "StartDate is the date when the subscription starts. MM-YYYY",
                     "type": "string"
                 },
                 "userID": {
+                    "description": "UserID is the unique identifier for the user associated with the subscription, also generated as a UUID.",
                     "type": "string"
                 }
             }
