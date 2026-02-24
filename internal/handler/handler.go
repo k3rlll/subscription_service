@@ -181,8 +181,8 @@ type GetCalculationsRequest struct {
 // @Produce      json
 // @Param        user_id      query string true  "User ID (UUID)" format(uuid)
 // @Param        service_name query string false "Specific service name to calculate cost for"
-// @Param        start_date   query string true  "Start date (e.g., 2023-01-01)" format(date)
-// @Param        end_date     query string false "End date (e.g., 2023-12-31)" format(date)
+// @Param        start_date   query string true  "Start date (e.g., 06-2006)" format(date)
+// @Param        end_date     query string false "End date (e.g., 06-2006)" format(date)
 // @Success      200 {object} map[string]interface{} "Calculation result"
 // @Failure      400 {object} map[string]interface{} "Bad request (invalid query parameters or dates)"
 // @Failure      422 {object} map[string]interface{} "Validation error"
