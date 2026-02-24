@@ -194,7 +194,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "date",
-                        "description": "Start date (e.g., 2023-01-01)",
+                        "description": "Start date (e.g., 06-2006)",
                         "name": "start_date",
                         "in": "query",
                         "required": true
@@ -202,7 +202,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "date",
-                        "description": "End date (e.g., 2023-12-31)",
+                        "description": "End date (e.g., 06-2006)",
                         "name": "end_date",
                         "in": "query"
                     }

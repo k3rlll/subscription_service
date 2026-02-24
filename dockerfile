@@ -9,6 +9,7 @@ RUN go mod download
 
 COPY . .
 RUN CGO_ENABLED=0 GOOS=linux go build -o subscription-api ./cmd/app/main.go
+
 RUN swag init -g cmd/app/main.go --parseInternal
 
 FROM alpine:latest
