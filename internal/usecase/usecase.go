@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 )
 
+//go:generate mockgen -source=usecase.go -destination=./mocks/usecase_mock.go -package=mocks
 type Repository interface {
 	//CreateSubscription handles the creation of a new subscription based on the provided request payload (user ID, service name, price, start date, end date)
 	CreateSubscription(ctx context.Context, input domain.Subscription) error
